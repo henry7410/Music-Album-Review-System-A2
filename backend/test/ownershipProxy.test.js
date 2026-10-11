@@ -8,9 +8,14 @@ class FakeUserProfileService extends UserProfileService {
         this.calls = [];
     }
 
-    async getProfile(userId) {
-        this.calls.push(['getProfile', userId]);
-        return { id: userId };
+    async getProfile(request) {
+        this.calls.push(['getProfile', request]);
+        return { id: request.targetUserId };
+    }
+
+    async updateProfile(request) {
+        this.calls.push(['updateProfile', request]);
+        return { id: request.targetUserId, ...request.updates };
     }
 
 }
@@ -20,20 +25,47 @@ describe('OwnershipProxy', () => {
         const service = new FakeUserProfileService();
         const proxy = new OwnershipProxy(service);
 
-        expect(await proxy.getProfile('user-1', 'user-1')).to.deep.equal({ id: 'user-1' });
+        const request = { requesterId: 'user-1', targetUserId: 'user-1' };
 
-        expect(service.calls).to.deep.equal([['getProfile', 'user-1']]);
+        expect(await proxy.getProfile(request)).to.deep.equal({ id: 'user-1' });
+        const updateRequest = {
+            ...request,
+            updates: {
+                firstName: 'Jasmine',
+                lastName: 'Jiang',
+                email: 'jasmine@example.com',
+                username: 'jasmine',
+            },
+        };
+        expect(await proxy.updateProfile(updateRequest))
+            .to.deep.equal({ id: 'user-1', ...updateRequest.updates });
+
+        expect(service.calls).to.deep.equal([
+            ['getProfile', request],
+            ['updateProfile', updateRequest],
+        ]);
     });
 
-    it('rejects another account without calling the service', async () => {
+    it('rejects reading or editing another account without calling the service', async () => {
         const service = new FakeUserProfileService();
         const proxy = new OwnershipProxy(service);
 
-        try {
-            await proxy.getProfile('user-1', 'user-2');
-            expect.fail('Expected ownership check to reject the request');
-        } catch (error) {
-            expect(error.statusCode).to.equal(403);
+        const requests = [
+            () => proxy.getProfile({ requesterId: 'user-1', targetUserId: 'user-2' }),
+            () => proxy.updateProfile({
+                requesterId: 'user-1',
+                targetUserId: 'user-2',
+                updates: { firstName: 'Changed' },
+            }),
+        ];
+
+        for (const request of requests) {
+            try {
+                await request();
+                expect.fail('Expected ownership check to reject the request');
+            } catch (error) {
+                expect(error.statusCode).to.equal(403);
+            }
         }
 
         expect(service.calls).to.deep.equal([]);

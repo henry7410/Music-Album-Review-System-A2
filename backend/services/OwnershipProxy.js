@@ -9,7 +9,7 @@ class OwnershipProxy extends UserProfileService {
         this.userProfileService = userProfileService;
     }
 
-    assertOwner(requesterId, targetUserId) {
+    assertOwner({ requesterId, targetUserId }) {
         if (!requesterId || !targetUserId || String(requesterId) !== String(targetUserId)) {
             const error = new Error('Forbidden');
             error.statusCode = 403;
@@ -17,9 +17,14 @@ class OwnershipProxy extends UserProfileService {
         }
     }
 
-    async getProfile(requesterId, targetUserId) {
-        this.assertOwner(requesterId, targetUserId);
-        return this.userProfileService.getProfile(targetUserId);
+    async getProfile(request) {
+        this.assertOwner(request);
+        return this.userProfileService.getProfile(request);
+    }
+
+    async updateProfile(request) {
+        this.assertOwner(request);
+        return this.userProfileService.updateProfile(request);
     }
 
 }
