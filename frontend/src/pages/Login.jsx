@@ -21,7 +21,7 @@ const Login = () => {
       setTimeout(() => navigate('/'), 800);
     } catch (error) {
       setStatus('error');
-      setMessage('Invalid email or password.');
+      setMessage(error.response?.data?.message || 'Invalid email or password.');
     }
   };
 
