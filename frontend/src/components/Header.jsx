@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../axiosConfig';
 
@@ -26,6 +26,9 @@ const Header = () => {
       <span className="font-bold">MARS</span>
       <div className="flex items-center gap-3">
         <span className="text-sm">{user.role === 'admin' ? 'Admin' : user.name}</span>
+        <Link to="/account" className="text-sm hover:underline">
+          My Account
+        </Link>
         <button onClick={handleLogout} className="bg-gray-700 px-3 py-1 rounded text-sm">
           Logout
         </button>

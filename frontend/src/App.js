@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import RedirectIfAuthenticated from './components/RedirectIfAuthenticated';
 import RequireAdmin from './components/RequireAdmin';
 import AlbumForm from './pages/AlbumForm';
+import Account from './pages/Account';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
       <Routes>
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Catalogue />} />
+          <Route path="/account" element={<Account />} />
           <Route path="/albums/:id" element={<AlbumDetail />} />
           <Route element={<RequireAdmin />}>
             <Route path="/admin/albums/new" element={<AlbumForm />} />
