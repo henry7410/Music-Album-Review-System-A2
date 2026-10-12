@@ -4,41 +4,11 @@ The reference for the four MongoDB collections. Read this instead of opening the
 model files. Source of truth: `backend/models/*.js`. If you change a model,
 update this file in the same PR.
 
-> ## ⚠️ BLOCKING ISSUE — read before starting either account-deletion story
->
-> **Deleting a user does not cascade to anything.** Their reviews and flags stay
-> in the database, and their `userId` then points to a user that doesn't exist.
->
-> That breaks a live A1 endpoint. `serializeReview` in
-> `reviewController.js` reads `review.userId.name` after
-> `.populate('userId', 'name')`. When the user is gone, `populate` sets
-> `userId` to `null`, and `null.name` throws a TypeError. Result:
-> **`GET /api/albums/:id/reviews` returns 500 for every album the deleted user
-> reviewed.** Everyone else loses the review list on those albums too.
->
-> The role rules (see [Roles](#roles)) make this worse. Only general users
-> can ever be deleted, and general users are exactly the accounts that write
-> reviews. Every legitimate account deletion is therefore likely to hit this
-> bug. It isn't a rare edge case.
->
-> Both account-deletion stories (inactive accounts older than five years, and
-> any other user-deletion path) are **blocked until they decide how to handle
-> a deleted user's data** and implement it. The options:
->
-> 1. **Cascade.** Delete the user's flags on their reviews, their reviews,
->    and the flags they raised, then the user. Every album they reviewed
->    must have its aggregate rating recomputed.
-> 2. **Tolerate orphans.** Make `serializeReview` handle a null `userId`,
->    for example by showing "Deleted user". This changes A1 code, so agree
->    on it as a team first.
->
-> Whichever is chosen, follow the same rule as the cascades below:
-> **delete children before parents.**
->
-> The two seeded inactive accounts have no reviews. That's deliberate, so
-> they can be deleted today without hitting this bug. Don't rely on that
-> as the fix: a demo that only deletes accounts with no reviews never tests
-> the case that will happen in real use.
+> **Deleting a user cascades to their reviews and flags (resolved).** The team
+> decided that deleting an account also deletes that user's reviews.
+> `MongoUserProfileService.deleteProfile` implements this. See
+> [Deleting a user](#deleting-a-user) for the order, and for the rule that
+> admin-initiated deletion must reuse it.
 
 ---
 
@@ -88,9 +58,11 @@ the protection.
    `registerUser` only reads `name`, `email` and `password`, so any `role`
    in the request body is ignored and the role defaults to `user`. Keep it
    that way. For demos, `admin_demo` is created by the seed (see
-   [Seed data](#seed-data)). `requireRole` checks the role inside the JWT,
-   so after promoting an account in the database, that person has to log
-   in again before it takes effect (tokens last 60 minutes).
+   [Seed data](#seed-data)). The JWT carries a role, but `requireRole`
+   doesn't use it. `protect` loads the user from the database on every
+   request and sets it as `req.user`, and `requireRole` checks
+   `req.user.role`. So a role change in the database takes effect on that
+   user's next request, with no need to log in again.
 
 **Who can do what to user accounts**
 
@@ -99,7 +71,7 @@ the protection.
 | View/edit own profile (FR-15, FR-17, FR-19) | ✅ | ❌ 403 |
 | List accounts (Account Management Page) | ❌ | ✅ general users only |
 | See another administrator | ❌ | ❌ |
-| Delete a general user inactive > 5 years | ❌ | ✅ (blocked for now; see the blocking issue at the top of this page) |
+| Delete a general user inactive > 5 years | ❌ | ✅ (must reuse the cascade; see [Deleting a user](#deleting-a-user)) |
 | Delete a general user active within 5 years | ❌ | ❌ 403 |
 | Delete an administrator, including themselves | ❌ | ❌ 403 |
 | Become an administrator | only by being promoted in the database | — |
@@ -130,13 +102,44 @@ keep them consistent, which is why the cascades below exist.
 |---|---|---|---|
 | **Album** | its reviews, and every flag on those reviews | `albumController.deleteAlbum` | flags → reviews → album |
 | **Review** | every flag on that review | `reviewController.deleteReview` | flags → review |
-| **User** | **nothing (see the blocking issue above)** | — | — |
+| **User** | flags on their reviews, their reviews, and the flags they raised | `MongoUserProfileService.deleteProfile` | flags on their reviews → their reviews → flags they raised → user |
 | **FlaggedReview** | nothing (it is a leaf) | — | — |
 
 The deletes run in order from the leaves up to the parent. None of them run
 in a transaction. If one step fails, the steps before it have already
 happened, but nothing is left pointing at a parent that no longer exists.
 The worst case is a half-finished delete, which you can safely run again.
+
+### Deleting a user
+
+The team decided that deleting an account also deletes that user's reviews.
+`MongoUserProfileService.deleteProfile` (`backend/services/UserProfileService.js`)
+deletes in this order:
+
+1. flags on the user's reviews
+2. the user's reviews
+3. flags the user raised
+4. the user
+
+Album ratings don't need recalculating, because `averageRating` is computed
+from reviews on every request.
+
+> **Any future admin-initiated user deletion must call this same cascade
+> rather than write its own.** That includes the inactive-account deletion
+> on the Account Management Page. A second copy can drift out of order or
+> miss a step, and leave orphans behind.
+>
+> `deleteProfile` as it stands also checks the account owner's current
+> password, which an admin won't have. So reusing it means moving the four
+> delete steps into a shared function that both paths call, not copying
+> them.
+
+**Deleting a user outside the app** (for example in Atlas) skips the cascade
+and leaves orphaned reviews behind. `serializeReview` still reads
+`review.userId.name` without a null check, so one orphaned review makes
+`GET /api/albums/:id/reviews` return 500 for that album. The admin
+moderation list doesn't have this problem: it shows "Deleted user" instead.
+Delete users through the app.
 
 ---
 
