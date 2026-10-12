@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../axiosConfig';
 
 const Login = () => {
@@ -9,6 +9,7 @@ const Login = () => {
   const [message, setMessage] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,6 +31,11 @@ const Login = () => {
       <form onSubmit={handleSubmit} className="bg-white p-6 shadow-md rounded">
         <h1 className="text-2xl font-bold mb-4 text-center">Login</h1>
 
+        {location.state?.message && (
+          <p role="status" className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded p-2">
+            {location.state.message}
+          </p>
+        )}
         {status === 'error' && (
           <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
             {message}
