@@ -5,7 +5,7 @@ const DELETED_USER = 'Deleted user';
 const DELETED_ALBUM = 'Deleted album';
 
 // Step 1 — count. One group per review that has at least one pending flag,
-// most recently flagged first.
+// most-flagged first, then most recently flagged.
 const pendingFlagsByReview = [
     { $match: { status: 'pending' } },
     {
@@ -16,8 +16,8 @@ const pendingFlagsByReview = [
             reasons: { $push: '$reason' },
         },
     },
-    // _id only breaks ties, so equal timestamps come back in a stable order.
-    { $sort: { latestFlaggedAt: -1, _id: 1 } },
+    // _id last only breaks remaining ties, so the order is stable.
+    { $sort: { flagCount: -1, latestFlaggedAt: -1, _id: 1 } },
 ];
 
 // ['Rude', 'Spam', 'Rude'] → [{ reason: 'Rude', count: 2 }, { reason: 'Spam', count: 1 }]

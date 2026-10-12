@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { buildModerationRows } = require('../controllers/moderationController');
+const { buildModerationRows, pendingFlagsByReview } = require('../controllers/moderationController');
 
 const group = (id, flagCount, reasons, latestFlaggedAt = new Date('2026-10-01')) => ({
     _id: id,
@@ -42,9 +42,24 @@ describe('Moderation: buildModerationRows', () => {
         ]);
     });
 
+    it('sorts by flagCount, then latestFlaggedAt, both descending, then _id for stability', () => {
+        const sortStage = pendingFlagsByReview.find((stage) => stage.$sort);
+
+        expect(Object.entries(sortStage.$sort)).to.deep.equal([
+            ['flagCount', -1],
+            ['latestFlaggedAt', -1],
+            ['_id', 1],
+        ]);
+    });
+
     it('keeps the aggregation order rather than the order reviews were loaded in', () => {
+        // As the aggregation returns them: r2 has more flags, so it comes
+        // first even though r1 was flagged more recently.
         const rows = buildModerationRows(
-            [group('r2', 1, ['Spam']), group('r1', 1, ['Rude'])],
+            [
+                group('r2', 3, ['Spam', 'Spam', 'Rude'], new Date('2026-10-01')),
+                group('r1', 1, ['Rude'], new Date('2026-10-05')),
+            ],
             [review('r1'), review('r2')]
         );
 
