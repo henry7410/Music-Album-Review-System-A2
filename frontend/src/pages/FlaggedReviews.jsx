@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../axiosConfig';
+import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 
 const STARS = [1, 2, 3, 4, 5];
@@ -10,6 +11,10 @@ const FlaggedReviews = () => {
   const [status, setStatus] = useState('loading'); // loading | error | loaded
   const [message, setMessage] = useState('');
   const [rows, setRows] = useState([]);
+  const [pendingAction, setPendingAction] = useState(null); // { type: 'dismiss' | 'delete', row }
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
   const { user } = useAuth();
 
   useEffect(() => {
@@ -30,12 +35,77 @@ const FlaggedReviews = () => {
     loadFlaggedReviews();
   }, [user.token]);
 
+  const handleConfirm = async () => {
+    const { type, row } = pendingAction;
+    setPendingAction(null);
+    setActionError('');
+    setActionSuccess('');
+    setBusy(true);
+
+    const url = `/api/admin/flagged-reviews/${row.reviewId}`;
+    const authHeader = { headers: { Authorization: `Bearer ${user.token}` } };
+    try {
+      const response =
+        type === 'delete'
+          ? await axiosInstance.delete(url, authHeader)
+          : await axiosInstance.patch(`${url}/dismiss`, {}, authHeader);
+      // Both endpoints return the refreshed queue, so no second request.
+      setRows(response.data.queue);
+      setActionSuccess(type === 'delete' ? 'Review deleted.' : 'Flags dismissed.');
+    } catch (error) {
+      setActionError(
+        error.response?.data?.message ||
+          (type === 'delete' ? 'Failed to delete review. Please try again.' : 'Failed to dismiss flags. Please try again.')
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const dialogMessage = (type, row) => {
+    if (type === 'dismiss') {
+      return `Dismiss ${row.flagCount} pending ${row.flagCount === 1 ? 'flag' : 'flags'} on this review? The review stays published.`;
+    }
+    // Inline elements only: ConfirmDialog renders the message inside a <p>.
+    return (
+      <>
+        Permanently delete this review by <strong>{row.authorName}</strong>?
+        <span className="block mt-3 p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700 break-words">
+          {row.comment ? `“${row.comment}”` : 'No comment, rating only.'}
+          <span className="block text-xs text-gray-500 mt-1">{row.stars} out of 5 stars</span>
+        </span>
+        <span className="block mt-3 font-semibold">This action cannot be undone.</span>
+      </>
+    );
+  };
+
   return (
     <div className="max-w-4xl mx-auto mt-10 mb-20 px-4">
       <Link to="/" className="text-sm text-blue-600 mb-4 inline-block">
         ← Back to catalogue
       </Link>
       <h1 className="text-2xl font-bold mb-6">Flagged Reviews</h1>
+
+      {pendingAction && (
+        <ConfirmDialog
+          message={dialogMessage(pendingAction.type, pendingAction.row)}
+          confirmLabel={pendingAction.type === 'delete' ? 'Delete review' : 'Dismiss flags'}
+          variant={pendingAction.type === 'delete' ? 'danger' : 'neutral'}
+          onConfirm={handleConfirm}
+          onCancel={() => setPendingAction(null)}
+        />
+      )}
+
+      {actionError && (
+        <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
+          {actionError}
+        </p>
+      )}
+      {actionSuccess && (
+        <p className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded p-2">
+          {actionSuccess}
+        </p>
+      )}
 
       {status === 'loading' && <p className="text-center text-gray-500">Loading flagged reviews...</p>}
 
@@ -93,6 +163,25 @@ const FlaggedReviews = () => {
                   Reviewed {new Date(row.createdAt).toLocaleDateString()} · Last flagged{' '}
                   {new Date(row.latestFlaggedAt).toLocaleDateString()}
                 </p>
+              </div>
+
+              <div className="flex gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setPendingAction({ type: 'dismiss', row })}
+                  disabled={busy}
+                  className="px-4 py-2 rounded border border-gray-300 text-gray-700 text-sm disabled:opacity-50"
+                >
+                  Dismiss flags
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingAction({ type: 'delete', row })}
+                  disabled={busy}
+                  className="px-4 py-2 rounded border border-red-300 text-red-600 text-sm disabled:opacity-50"
+                >
+                  Delete review
+                </button>
               </div>
             </li>
           ))}

@@ -119,14 +119,19 @@ const updateReview = async (req, res) => {
     }
 };
 
+// Shared by the author's DELETE /api/reviews/:id and the admin moderation
+// delete. Takes a loaded Review document; returns the album's new rating.
+const removeReview = async (review) => {
+    // Flags first: if this fails the review still exists, so no flag is
+    // left pointing at a deleted review.
+    await FlaggedReview.deleteMany({ reviewId: review._id });
+    await review.deleteOne();
+    return aggregateRating(review.albumId);
+};
+
 const deleteReview = async (req, res) => {
     try {
-        const { albumId } = req.resource;
-        // Flags first: if this fails the review still exists, so no flag is
-        // left pointing at a deleted review.
-        await FlaggedReview.deleteMany({ reviewId: req.resource._id });
-        await req.resource.deleteOne();
-        const { averageRating, reviewCount } = await aggregateRating(albumId);
+        const { averageRating, reviewCount } = await removeReview(req.resource);
 
         res.status(200).json({ message: 'Review deleted', averageRating, reviewCount });
     } catch (error) {
@@ -134,4 +139,4 @@ const deleteReview = async (req, res) => {
     }
 };
 
-module.exports = { createReview, listReviewsForAlbum, updateReview, deleteReview };
+module.exports = { createReview, listReviewsForAlbum, updateReview, deleteReview, removeReview };
