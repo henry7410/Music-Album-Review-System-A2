@@ -18,6 +18,10 @@ class FakeUserProfileService extends UserProfileService {
         return { id: request.targetUserId, ...request.updates };
     }
 
+    async deleteProfile(request) {
+        this.calls.push(['deleteProfile', request]);
+    }
+
 }
 
 describe('OwnershipProxy', () => {
@@ -39,14 +43,16 @@ describe('OwnershipProxy', () => {
         };
         expect(await proxy.updateProfile(updateRequest))
             .to.deep.equal({ id: 'user-1', ...updateRequest.updates });
+        await proxy.deleteProfile({ ...request, currentPassword: 'correct-password' });
 
         expect(service.calls).to.deep.equal([
             ['getProfile', request],
             ['updateProfile', updateRequest],
+            ['deleteProfile', { ...request, currentPassword: 'correct-password' }],
         ]);
     });
 
-    it('rejects reading or editing another account without calling the service', async () => {
+    it('rejects reading, editing, or deleting another account without calling the service', async () => {
         const service = new FakeUserProfileService();
         const proxy = new OwnershipProxy(service);
 
@@ -56,6 +62,11 @@ describe('OwnershipProxy', () => {
                 requesterId: 'user-1',
                 targetUserId: 'user-2',
                 updates: { firstName: 'Changed' },
+            }),
+            () => proxy.deleteProfile({
+                requesterId: 'user-1',
+                targetUserId: 'user-2',
+                currentPassword: 'password',
             }),
         ];
 

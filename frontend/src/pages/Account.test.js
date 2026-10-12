@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Account from './Account';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../axiosConfig';
@@ -7,16 +7,22 @@ import axiosInstance from '../axiosConfig';
 jest.mock('../context/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('../axiosConfig', () => ({
   __esModule: true,
-  default: { get: jest.fn(), put: jest.fn() },
+  default: { get: jest.fn(), put: jest.fn(), delete: jest.fn() },
 }));
+
+const LocationDisplay = () => {
+  const location = useLocation();
+  return <p>{location.pathname} {location.state?.message}</p>;
+};
 
 describe('Account', () => {
   const user = { id: 'user-1', name: 'Jasmine', email: 'jasmine@example.com', token: 'token-1' };
   const login = jest.fn();
+  const logout = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuth.mockReturnValue({ user, login });
+    useAuth.mockReturnValue({ user, login, logout });
     axiosInstance.get.mockResolvedValue({
       data: {
         id: 'user-1',
@@ -126,5 +132,73 @@ describe('Account', () => {
     expect(screen.getByLabelText('Registered email address')).toHaveValue('jasmine@example.com');
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
     expect(login).not.toHaveBeenCalled();
+  });
+
+  it('warns before deletion and keeps the account when deletion is cancelled', async () => {
+    render(<MemoryRouter><Account /></MemoryRouter>);
+
+    expect(await screen.findByRole('button', { name: 'Edit details' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete account' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete account' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('This action cannot be undone');
+    expect(screen.getByLabelText('Current password')).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(axiosInstance.delete).not.toHaveBeenCalled();
+    expect(logout).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Delete account' })).toBeInTheDocument();
+  });
+
+  it('logs the user out and confirms deletion after successful password verification', async () => {
+    axiosInstance.delete.mockResolvedValue({ data: { message: 'Account deleted successfully' } });
+    render(
+      <MemoryRouter initialEntries={['/account']}>
+        <Routes>
+          <Route path="/account" element={<Account />} />
+          <Route path="/login" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit details' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete account' }));
+    fireEvent.change(screen.getByLabelText('Current password'), {
+      target: { value: 'correct-password' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Permanently delete' }));
+
+    await waitFor(() => expect(axiosInstance.delete).toHaveBeenCalledWith(
+      '/api/auth/users/user-1/profile',
+      {
+        headers: { Authorization: 'Bearer token-1' },
+        data: { currentPassword: 'correct-password' },
+      }
+    ));
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('/login Your account has been deleted successfully.'))
+      .toBeInTheDocument();
+  });
+
+  it('keeps the account active and allows retry after an incorrect password', async () => {
+    axiosInstance.delete.mockRejectedValue({
+      response: { status: 401, data: { message: 'Current password is incorrect' } },
+    });
+    render(<MemoryRouter><Account /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit details' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete account' }));
+    fireEvent.change(screen.getByLabelText('Current password'), {
+      target: { value: 'wrong-password' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Permanently delete' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Current password is incorrect');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(logout).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Permanently delete' })).toBeInTheDocument();
   });
 });

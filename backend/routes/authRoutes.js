@@ -17,5 +17,7 @@ router.get('/profile', protect, userProfileController.getProfile);
 router.get('/users/:userId/profile', protect, userProfileController.getProfile);
 router.put('/profile', protect, userProfileController.updateProfile);
 router.put('/users/:userId/profile', protect, userProfileController.updateProfile);
+router.delete('/profile', protect, userProfileController.deleteProfile);
+router.delete('/users/:userId/profile', protect, userProfileController.deleteProfile);
 
 module.exports = router;

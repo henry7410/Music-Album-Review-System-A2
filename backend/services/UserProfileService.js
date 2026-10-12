@@ -1,4 +1,7 @@
 const User = require('../models/User');
+const Review = require('../models/Review');
+const FlaggedReview = require('../models/FlaggedReview');
+const bcrypt = require('bcrypt');
 
 class UserProfileService {
     async getProfile(request) {
@@ -7,6 +10,10 @@ class UserProfileService {
 
     async updateProfile(request) {
         throw new Error('updateProfile must be implemented');
+    }
+
+    async deleteProfile(request) {
+        throw new Error('deleteProfile must be implemented');
     }
 }
 
@@ -62,6 +69,32 @@ class MongoUserProfileService extends UserProfileService {
 
         await user.save();
         return user;
+    }
+
+    async deleteProfile(request) {
+        const { targetUserId, currentPassword } = request;
+        const user = await User.findById(targetUserId);
+        if (!user) {
+            const error = new Error('User not found');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const passwordMatches = await bcrypt.compare(currentPassword, user.password);
+        if (!passwordMatches) {
+            const error = new Error('Current password is incorrect');
+            error.statusCode = 401;
+            throw error;
+        }
+
+        const reviews = await Review.find({ userId: targetUserId }).select('_id');
+        const reviewIds = reviews.map((review) => review._id);
+        if (reviewIds.length > 0) {
+            await FlaggedReview.deleteMany({ reviewId: { $in: reviewIds } });
+            await Review.deleteMany({ _id: { $in: reviewIds } });
+        }
+        await FlaggedReview.deleteMany({ flaggedBy: targetUserId });
+        await user.deleteOne();
     }
 }
 

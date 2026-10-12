@@ -135,4 +135,72 @@ describe('User profile controller', () => {
         expect(res.statusCode).to.equal(200);
         expect(res.body.email).to.equal('jasmine@example.com');
     });
+
+    it('requires the current password before requesting account deletion', async () => {
+        let deleteCalled = false;
+        const service = {
+            async deleteProfile() {
+                deleteCalled = true;
+            },
+        };
+        const res = {
+            statusCode: null,
+            body: null,
+            status(code) {
+                this.statusCode = code;
+                return this;
+            },
+            json(body) {
+                this.body = body;
+                return this;
+            },
+        };
+        const controller = createUserProfileController(service);
+
+        await controller.deleteProfile({
+            user: { id: 'user-1' },
+            params: {},
+            body: {},
+        }, res);
+
+        expect(res.statusCode).to.equal(400);
+        expect(res.body.message).to.equal('Current password is required');
+        expect(deleteCalled).to.equal(false);
+    });
+
+    it('passes the target account and password through the deletion service and confirms success', async () => {
+        let receivedRequest;
+        const service = {
+            async deleteProfile(request) {
+                receivedRequest = request;
+            },
+        };
+        const res = {
+            statusCode: null,
+            body: null,
+            status(code) {
+                this.statusCode = code;
+                return this;
+            },
+            json(body) {
+                this.body = body;
+                return this;
+            },
+        };
+        const controller = createUserProfileController(service);
+
+        await controller.deleteProfile({
+            user: { id: 'user-1' },
+            params: { userId: 'user-1' },
+            body: { currentPassword: 'correct-password' },
+        }, res);
+
+        expect(receivedRequest).to.deep.equal({
+            requesterId: 'user-1',
+            targetUserId: 'user-1',
+            currentPassword: 'correct-password',
+        });
+        expect(res.statusCode).to.equal(200);
+        expect(res.body.message).to.equal('Account deleted successfully');
+    });
 });

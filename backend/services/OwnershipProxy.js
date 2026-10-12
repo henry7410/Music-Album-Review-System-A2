@@ -27,6 +27,11 @@ class OwnershipProxy extends UserProfileService {
         return this.userProfileService.updateProfile(request);
     }
 
+    async deleteProfile(request) {
+        this.assertOwner(request);
+        return this.userProfileService.deleteProfile(request);
+    }
+
 }
 
 module.exports = OwnershipProxy;
