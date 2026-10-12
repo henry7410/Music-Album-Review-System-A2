@@ -81,7 +81,29 @@ const createUserProfileController = (userProfileService) => {
         }
     };
 
-    return { getProfile, updateProfile };
+    const deleteProfile = async (req, res) => {
+        const { currentPassword } = req.body || {};
+        if (typeof currentPassword !== 'string' || !currentPassword) {
+            return res.status(400).json({ message: 'Current password is required' });
+        }
+
+        const requesterId = req.user.id;
+        const targetUserId = req.params.userId || requesterId;
+        try {
+            await userProfileService.deleteProfile({
+                requesterId,
+                targetUserId,
+                currentPassword,
+            });
+            res.status(200).json({ message: 'Account deleted successfully' });
+        } catch (error) {
+            res.status(error.statusCode || 500).json({
+                message: error.statusCode ? error.message : 'Unable to delete account',
+            });
+        }
+    };
+
+    return { getProfile, updateProfile, deleteProfile };
 };
 
 module.exports = { createUserProfileController };
