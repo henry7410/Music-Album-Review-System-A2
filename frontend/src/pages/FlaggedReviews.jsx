@@ -90,6 +90,7 @@ const FlaggedReviews = () => {
         <ConfirmDialog
           message={dialogMessage(pendingAction.type, pendingAction.row)}
           confirmLabel={pendingAction.type === 'delete' ? 'Delete review' : 'Dismiss flags'}
+          variant={pendingAction.type === 'delete' ? 'danger' : 'neutral'}
           onConfirm={handleConfirm}
           onCancel={() => setPendingAction(null)}
         />
