@@ -1,6 +1,9 @@
 const { expect } = require('chai');
 const sinon = require('sinon');
 const User = require('../models/User');
+const Review = require('../models/Review');
+const FlaggedReview = require('../models/FlaggedReview');
+const bcrypt = require('bcrypt');
 const { MongoUserProfileService } = require('../services/UserProfileService');
 
 describe('MongoUserProfileService', () => {
@@ -59,5 +62,53 @@ describe('MongoUserProfileService', () => {
         expect(user.username).to.equal('jasmine');
         expect(user.name).to.equal('Jasmine Jiang');
         expect(user.save.calledOnce).to.equal(true);
+    });
+
+    it('does not remove account data when the current password is incorrect', async () => {
+        const user = { password: 'stored-hash', deleteOne: sinon.stub().resolves() };
+        sinon.stub(User, 'findById').resolves(user);
+        sinon.stub(bcrypt, 'compare').resolves(false);
+        const reviewFind = sinon.stub(Review, 'find');
+        const service = new MongoUserProfileService();
+
+        try {
+            await service.deleteProfile({
+                targetUserId: 'user-1',
+                currentPassword: 'wrong-password',
+            });
+            expect.fail('Expected incorrect password to reject deletion');
+        } catch (error) {
+            expect(error.statusCode).to.equal(401);
+            expect(error.message).to.equal('Current password is incorrect');
+        }
+
+        expect(reviewFind.called).to.equal(false);
+        expect(user.deleteOne.called).to.equal(false);
+    });
+
+    it('removes owned reviews, related flags, and the user after password verification', async () => {
+        const reviewIds = [{ _id: 'review-1' }];
+        const user = { password: 'stored-hash', deleteOne: sinon.stub().resolves() };
+        sinon.stub(User, 'findById').resolves(user);
+        sinon.stub(bcrypt, 'compare').resolves(true);
+        sinon.stub(Review, 'find').returns({
+            select: sinon.stub().resolves(reviewIds),
+        });
+        const reviewDeleteMany = sinon.stub(Review, 'deleteMany').resolves();
+        const flagDeleteMany = sinon.stub(FlaggedReview, 'deleteMany').resolves();
+        const service = new MongoUserProfileService();
+
+        await service.deleteProfile({
+            targetUserId: 'user-1',
+            currentPassword: 'correct-password',
+        });
+
+        expect(flagDeleteMany.calledTwice).to.equal(true);
+        expect(flagDeleteMany.firstCall.args[0]).to.deep.equal({
+            reviewId: { $in: ['review-1'] },
+        });
+        expect(flagDeleteMany.secondCall.args[0]).to.deep.equal({ flaggedBy: 'user-1' });
+        expect(reviewDeleteMany.calledOnceWithExactly({ _id: { $in: ['review-1'] } })).to.equal(true);
+        expect(user.deleteOne.calledOnce).to.equal(true);
     });
 });
