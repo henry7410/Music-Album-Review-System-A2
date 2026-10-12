@@ -4,7 +4,7 @@ const Album = require('../models/Album');
 const FlaggedReview = require('../models/FlaggedReview');
 const { aggregateRating } = require('../utils/aggregateRating');
 
-const serializeReview = (review, requesterId) => ({
+const serializeReview = (review, requesterId, flaggedReviewIds = []) => ({
     _id: review._id,
     albumId: review.albumId,
     stars: review.stars,
@@ -13,6 +13,7 @@ const serializeReview = (review, requesterId) => ({
     updatedAt: review.updatedAt,
     userName: review.userId.name,
     isOwn: review.userId._id.toString() === requesterId,
+    isFlagged: flaggedReviewIds.includes(review._id.toString()),
 });
 
 const validateReviewInput = ({ stars, comment }) => {
@@ -76,8 +77,15 @@ const listReviewsForAlbum = async (req, res) => {
         const reviews = await Review.find({ albumId: req.params.id })
             .sort({ createdAt: -1 })
             .populate('userId', 'name');
+        const flags = await FlaggedReview.find({
+            flaggedBy: req.user.id,
+        });
 
-        res.status(200).json(reviews.map((review) => serializeReview(review, req.user.id)));
+        const flaggedReviewIds = flags.map(
+            (flag) => flag.reviewId.toString()
+        );
+
+        res.status(200).json(reviews.map((review) => serializeReview(review, req.user.id, flaggedReviewIds)));
     } catch (error) {
         if (error.name === 'CastError') {
             return res.status(404).json({ message: 'Album not found' });

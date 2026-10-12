@@ -81,6 +81,16 @@ const AlbumDetail = () => {
     setAlbum((prev) => ({ ...prev, averageRating, reviewCount }));
   };
 
+  const handleReviewFlagged = (reviewId) => {
+    setReviews((prev) =>
+      prev.map((review) =>
+        review._id === reviewId
+          ? { ...review, isFlagged: true }
+          : review
+      )
+    );
+  };
+
   const handleDeleteConfirm = async () => {
     setDeleteDialogOpen(false);
     try {
@@ -214,6 +224,7 @@ const AlbumDetail = () => {
                 review={review}
                 onUpdated={handleReviewUpdated}
                 onDeleted={handleReviewDeleted}
+                onFlagged={handleReviewFlagged}
               />
             ))}
           </div>

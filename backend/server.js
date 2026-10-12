@@ -16,6 +16,7 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api', require('./routes/albumRoutes'));
 app.use('/api', require('./routes/reviewRoutes'));
+app.use('/api', require('./routes/flaggedReviewRoutes'));
 
 // Serves the built frontend in production, behind nginx (see README's
 // deployment checklist) — nginx only reverse-proxies port 80 to this app on
