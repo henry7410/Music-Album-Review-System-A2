@@ -1,5 +1,6 @@
 const FlaggedReview = require('../models/FlaggedReview');
 const Review = require('../models/Review');
+const { DeleteReviewAction, DismissFlagsAction } = require('../moderation/moderationActions');
 
 const DELETED_USER = 'Deleted user';
 const DELETED_ALBUM = 'Deleted album';
@@ -58,21 +59,45 @@ const buildModerationRows = (groups, reviews) => {
         });
 };
 
+const getModerationQueue = async () => {
+    const groups = await FlaggedReview.aggregate(pendingFlagsByReview);
+
+    // Step 2 — load the reviews those groups point to. Only the author's
+    // name is populated, never the email (NFR-03).
+    const reviews = await Review.find({ _id: { $in: groups.map((group) => group._id) } })
+        .populate('userId', 'name')
+        .populate('albumId', 'title artistName')
+        .lean();
+
+    return buildModerationRows(groups, reviews);
+};
+
 const listFlaggedReviews = async (req, res) => {
     try {
-        const groups = await FlaggedReview.aggregate(pendingFlagsByReview);
-
-        // Step 2 — load the reviews those groups point to. Only the author's
-        // name is populated, never the email (NFR-03).
-        const reviews = await Review.find({ _id: { $in: groups.map((group) => group._id) } })
-            .populate('userId', 'name')
-            .populate('albumId', 'title artistName')
-            .lean();
-
-        res.status(200).json(buildModerationRows(groups, reviews));
+        res.status(200).json(await getModerationQueue());
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-module.exports = { listFlaggedReviews, buildModerationRows, pendingFlagsByReview };
+// Both actions run after loadFlaggedReview, and respond with the action's
+// result plus the refreshed queue.
+const runModerationAction = (Action) => async (req, res) => {
+    try {
+        const action = new Action(req.flaggedReview, getModerationQueue);
+        res.status(200).json(await action.execute());
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const deleteFlaggedReview = runModerationAction(DeleteReviewAction);
+const dismissFlaggedReview = runModerationAction(DismissFlagsAction);
+
+module.exports = {
+    listFlaggedReviews,
+    deleteFlaggedReview,
+    dismissFlaggedReview,
+    buildModerationRows,
+    pendingFlagsByReview,
+};

@@ -101,7 +101,7 @@ keep them consistent, which is why the cascades below exist.
 | Delete a… | Also deletes | Where | Order |
 |---|---|---|---|
 | **Album** | its reviews, and every flag on those reviews | `albumController.deleteAlbum` | flags → reviews → album |
-| **Review** | every flag on that review | `reviewController.deleteReview` | flags → review |
+| **Review** | every flag on that review | `reviewController.removeReview`, called by both the author's delete (`DELETE /api/reviews/:id`) and the admin's delete (`DELETE /api/admin/flagged-reviews/:reviewId`) | flags → review, then the album's rating is recalculated for the response |
 | **User** | flags on their reviews, their reviews, and the flags they raised | `MongoUserProfileService.deleteProfile` | flags on their reviews → their reviews → flags they raised → user |
 | **FlaggedReview** | nothing (it is a leaf) | — | — |
 
