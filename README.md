@@ -132,15 +132,15 @@ meant to be documented here in plain text, unlike `MONGO_URI` or
 
 | Email | Password |
 |---|---|
-| brad@example.com | `Demo1234` |
-| mika@example.com | `Demo1234` |
-| henry@example.com | `Demo1234` |
-| kenny@example.com | `Demo1234` |
-| jasmine@example.com | `Demo1234` |
-| dio@example.com | `Demo1234` |
-| giorno@example.com | `Demo1234` |
-| jolene@example.com | `Demo1234` |
-| josuke@example.com | `Demo1234` |
+| brad@example.com | `Demo1234!` |
+| mika@example.com | `Demo1234!` |
+| henry@example.com | `Demo1234!` |
+| kenny@example.com | `Demo1234!` |
+| jasmine@example.com | `Demo1234!` |
+| dio@example.com | `Demo1234!` |
+| giorno@example.com | `Demo1234!` |
+| jolene@example.com | `Demo1234!` |
+| josuke@example.com | `Demo1234!` |
 
 Each has `role: 'user'`. One album (*In Rainbows*) is deliberately left
 without any reviews, to demonstrate the "No ratings yet" state.

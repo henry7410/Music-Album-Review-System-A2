@@ -10,25 +10,27 @@ const Review = require('../models/Review');
 // Demo accounts only — this password is deliberately public (documented in
 // the README), not a committed secret. Real accounts always go through
 // registration and get their own password.
-const DEMO_PASSWORD = 'Demo1234';
+const DEMO_PASSWORD = 'Demo1234!';
 
-// lastName is intentionally empty for now — surnames are still being agreed.
+// name is derived the same way registration derives it. createdAt is a fixed
+// backdated registration date, written by the native-driver call in the seed loop.
 const demoUsers = [
-    { name: 'Brad', email: 'brad@example.com', firstName: 'Brad', lastName: '', username: 'brad' },
-    { name: 'Mika', email: 'mika@example.com', firstName: 'Mika', lastName: '', username: 'mika' },
-    { name: 'Henry', email: 'henry@example.com', firstName: 'Henry', lastName: '', username: 'henry' },
-    { name: 'Kenny', email: 'kenny@example.com', firstName: 'Kenny', lastName: '', username: 'kenny' },
-    { name: 'Jasmine', email: 'jasmine@example.com', firstName: 'Jasmine', lastName: '', username: 'jasmine' },
-    { name: 'Dio', email: 'dio@example.com', firstName: 'Dio', lastName: '', username: 'dio' },
-    { name: 'Giorno', email: 'giorno@example.com', firstName: 'Giorno', lastName: '', username: 'giorno' },
-    { name: 'Jolene', email: 'jolene@example.com', firstName: 'Jolene', lastName: '', username: 'jolene' },
-    { name: 'Josuke', email: 'josuke@example.com', firstName: 'Josuke', lastName: '', username: 'josuke' },
-];
+    { email: 'brad@example.com', firstName: 'Brad', lastName: 'Hsu', username: 'brad', createdAt: new Date('2026-10-02T19:42:00Z') },
+    { email: 'mika@example.com', firstName: 'Mika', lastName: 'Tseng', username: 'mika', createdAt: new Date('2026-10-02T21:05:00Z') },
+    { email: 'henry@example.com', firstName: 'Henry', lastName: 'Chan', username: 'henry', createdAt: new Date('2026-10-03T13:18:00Z') },
+    { email: 'kenny@example.com', firstName: 'Kenny', lastName: 'Lan', username: 'kenny', createdAt: new Date('2026-10-04T10:27:00Z') },
+    { email: 'jasmine@example.com', firstName: 'Jasmine', lastName: 'Wang', username: 'jasmine', createdAt: new Date('2026-10-05T16:53:00Z') },
+    { email: 'dio@example.com', firstName: 'Dio', lastName: 'Brando', username: 'dio', createdAt: new Date('2026-10-06T22:11:00Z') },
+    { email: 'giorno@example.com', firstName: 'Giorno', lastName: 'Giovanna', username: 'giorno', createdAt: new Date('2026-10-07T11:36:00Z') },
+    { email: 'jolene@example.com', firstName: 'Jolene', lastName: 'Cujoh', username: 'jolene', createdAt: new Date('2026-10-08T14:09:00Z') },
+    { email: 'josuke@example.com', firstName: 'Josuke', lastName: 'Higashikata', username: 'josuke', createdAt: new Date('2026-10-09T18:24:00Z') },
+].map((demoUser) => ({ ...demoUser, name: `${demoUser.firstName} ${demoUser.lastName}` }));
 
 // Accounts inactive for more than five years, so the inactive-account
 // deletion story can be demonstrated. They deliberately have no reviews:
-// deleting a user does not cascade, and an orphaned review breaks
-// serializeReview (see docs/schema.md).
+// deleting a user cascades to their reviews, so any reviews here would
+// vanish during the demo and shift the catalogue's ratings, and an account
+// idle for years should not have recent reviews anyway.
 const yearsAgo = (years) => {
     const date = new Date();
     date.setFullYear(date.getFullYear() - years);
@@ -66,6 +68,7 @@ const adminDemoUser = {
     lastName: 'Demo',
     username: 'admin_demo',
     role: 'admin',
+    createdAt: new Date('2026-10-01T08:30:00Z'),
 };
 
 const albums = [
@@ -309,7 +312,8 @@ const seedAlbums = async () => {
     }
 
     let usersCreated = 0;
-    const userIdByName = {};
+    // Keyed by firstName, which is what albumReviews refers to.
+    const userIdByFirstName = {};
     const allDemoUsers = [
         ...demoUsers.map((demoUser) => ({ ...demoUser, lastActivity: new Date() })),
         ...inactiveDemoUsers,
@@ -340,7 +344,7 @@ const seedAlbums = async () => {
         if (createdAt) {
             await User.collection.updateOne({ _id: user._id }, { $set: { createdAt } });
         }
-        userIdByName[profile.name] = user._id;
+        userIdByFirstName[profile.firstName] = user._id;
     }
 
     let reviewsCreated = 0;
@@ -349,9 +353,11 @@ const seedAlbums = async () => {
     for (const [albumTitle, reviews] of Object.entries(albumReviews)) {
         const albumId = albumIdByTitle[albumTitle];
         for (const { user, stars, comment } of reviews) {
+            const userId = userIdByFirstName[user];
+            if (!userId) throw new Error(`Review on "${albumTitle}" refers to unknown demo user "${user}"`);
             const result = await Review.findOneAndUpdate(
-                { userId: userIdByName[user], albumId },
-                { userId: userIdByName[user], albumId, stars, comment },
+                { userId, albumId },
+                { userId, albumId, stars, comment },
                 { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true, rawResult: true }
             );
             if (result.lastErrorObject?.updatedExisting) {
