@@ -86,6 +86,27 @@ describe('MongoUserProfileService', () => {
         expect(user.deleteOne.called).to.equal(false);
     });
 
+    it('refuses to delete an administrator account through the profile page', async () => {
+        const user = { role: 'admin', password: 'stored-hash', deleteOne: sinon.stub().resolves() };
+        sinon.stub(User, 'findById').resolves(user);
+        const passwordCheck = sinon.stub(bcrypt, 'compare').resolves(true);
+        const service = new MongoUserProfileService();
+
+        try {
+            await service.deleteProfile({
+                targetUserId: 'admin-1',
+                currentPassword: 'correct-password',
+            });
+            expect.fail('Expected an administrator account to be protected from deletion');
+        } catch (error) {
+            expect(error.statusCode).to.equal(403);
+            expect(error.message).to.equal('Administrator accounts cannot be deleted through the profile page');
+        }
+
+        expect(passwordCheck.called).to.equal(false);
+        expect(user.deleteOne.called).to.equal(false);
+    });
+
     it('removes owned reviews, related flags, and the user after password verification', async () => {
         const reviewIds = [{ _id: 'review-1' }];
         const user = { password: 'stored-hash', deleteOne: sinon.stub().resolves() };

@@ -12,8 +12,11 @@ class AccountSummary {
     #role;
     #registeredAt;
     #lastActivity;
+    #inactive;
 
-    constructor(user) {
+    // `inactive` comes from the InactivityPolicy, so the 5-year rule lives in
+    // one place rather than being recomputed here or in the browser.
+    constructor(user, inactive = false) {
         this.#id = String(user._id);
         this.#username = user.username ?? null;
         this.#firstName = user.firstName ?? null;
@@ -22,6 +25,7 @@ class AccountSummary {
         // createdAt doubles as the registration date (see models/User.js).
         this.#registeredAt = user.createdAt ?? null;
         this.#lastActivity = user.lastActivity ?? null;
+        this.#inactive = Boolean(inactive);
     }
 
     get id() { return this.#id; }
@@ -31,6 +35,12 @@ class AccountSummary {
     get role() { return this.#role; }
     get registeredAt() { return this.#registeredAt; }
     get lastActivity() { return this.#lastActivity; }
+    get inactive() { return this.#inactive; }
+    get isAdmin() { return this.#role === 'admin'; }
+
+    // Only inactive standard accounts may be deleted. Administrator accounts
+    // are never deletable, so the system cannot be left without an admin.
+    get deletable() { return this.#inactive && !this.isAdmin; }
 
     // Called by res.json() via JSON.stringify.
     toJSON() {
@@ -42,6 +52,8 @@ class AccountSummary {
             role: this.#role,
             registeredAt: this.#registeredAt,
             lastActivity: this.#lastActivity,
+            inactive: this.#inactive,
+            deletable: this.deletable,
         };
     }
 }
