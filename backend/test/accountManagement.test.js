@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const AccountSummary = require('../services/AccountSummary');
 const AccountManagementFacade = require('../services/AccountManagementFacade');
+const InactivityPolicy = require('../services/InactivityPolicy');
 const { createAccountManagementController } = require('../controllers/accountManagementController');
 
 chai.use(chaiHttp);
@@ -53,7 +54,15 @@ describe('AccountSummary', () => {
             role: 'user',
             registeredAt: '2026-01-15T10:30:00.000Z',
             lastActivity: '2026-10-10T09:45:00.000Z',
+            inactive: false,
+            deletable: false,
         });
+    });
+
+    it('is deletable only when inactive and not an administrator', () => {
+        expect(new AccountSummary(storedUser, true).deletable).to.equal(true);
+        expect(new AccountSummary(storedUser, false).deletable).to.equal(false);
+        expect(new AccountSummary({ ...storedUser, role: 'admin' }, true).deletable).to.equal(false);
     });
 
     it('keeps its state private and read-only', () => {
@@ -71,6 +80,31 @@ describe('AccountSummary', () => {
         expect(summary.firstName).to.equal(null);
         expect(summary.lastName).to.equal(null);
         expect(summary.lastActivity).to.equal(null);
+    });
+});
+
+describe('InactivityPolicy', () => {
+    const now = () => new Date('2026-10-13T12:00:00.000Z');
+    const policy = new InactivityPolicy({ years: 5, now });
+
+    it('treats activity more than 5 years ago as inactive', () => {
+        expect(policy.isInactive(new Date('2021-10-13T11:59:59.000Z'))).to.equal(true);
+        expect(policy.isInactive(new Date('2019-01-01T00:00:00.000Z'))).to.equal(true);
+    });
+
+    it('treats activity exactly 5 years ago or more recently as active', () => {
+        expect(policy.isInactive(new Date('2021-10-13T12:00:00.000Z'))).to.equal(false);
+        expect(policy.isInactive(new Date('2024-06-01T00:00:00.000Z'))).to.equal(false);
+    });
+
+    it('never treats an account with no activity date as inactive', () => {
+        expect(policy.isInactive(null)).to.equal(false);
+        expect(policy.isInactive(undefined)).to.equal(false);
+    });
+
+    it('keeps its threshold private', () => {
+        expect(Object.keys(policy)).to.deep.equal([]);
+        expect(policy.years).to.equal(5);
     });
 });
 
@@ -100,6 +134,93 @@ describe('AccountManagementFacade', () => {
         expect(facade).not.to.have.property('userModel');
         expect(Object.keys(facade)).to.deep.equal([]);
     });
+
+    describe('deleteInactiveAccount', () => {
+        const SIX_YEARS_AGO = new Date('2020-01-01T00:00:00.000Z');
+        const LAST_MONTH = new Date('2026-09-13T00:00:00.000Z');
+        const inactivityPolicy = new InactivityPolicy({ now: () => new Date('2026-10-13T12:00:00.000Z') });
+
+        // Records the order of every delete so the cascade order can be checked.
+        const buildFacade = (user) => {
+            const calls = [];
+            const record = (name) => sinon.stub().callsFake(async (filter) => { calls.push([name, filter]); });
+            if (user) {
+                user.deleteOne = sinon.stub().callsFake(async () => { calls.push(['user.deleteOne']); });
+            }
+            const listQuery = {
+                select: sinon.stub().returnsThis(),
+                sort: sinon.stub().returnsThis(),
+                lean: sinon.stub().resolves([]),
+            };
+            const userModel = {
+                findById: sinon.stub().resolves(user),
+                find: sinon.stub().returns(listQuery),
+            };
+            const reviewModel = {
+                find: sinon.stub().returns({ select: sinon.stub().resolves([{ _id: 'review-1' }]) }),
+                deleteMany: record('Review.deleteMany'),
+            };
+            const flaggedReviewModel = { deleteMany: record('FlaggedReview.deleteMany') };
+            const loginAttemptModel = { deleteMany: record('LoginAttempt.deleteMany') };
+            const facade = new AccountManagementFacade({
+                userModel, reviewModel, flaggedReviewModel, loginAttemptModel, inactivityPolicy,
+            });
+            return { facade, calls, userModel };
+        };
+
+        const expectRejection = async (promise, statusCode, message) => {
+            try {
+                await promise;
+                expect.fail('Expected the deletion to be rejected');
+            } catch (error) {
+                expect(error.statusCode).to.equal(statusCode);
+                expect(error.message).to.equal(message);
+            }
+        };
+
+        it('removes reviews, flags, login records and then the user, and returns the refreshed list', async () => {
+            const user = { ...storedUser, lastActivity: SIX_YEARS_AGO };
+            const { facade, calls, userModel } = buildFacade(user);
+
+            const accounts = await facade.deleteInactiveAccount('user-1');
+
+            expect(calls).to.deep.equal([
+                ['FlaggedReview.deleteMany', { reviewId: { $in: ['review-1'] } }],
+                ['Review.deleteMany', { userId: 'user-1' }],
+                ['FlaggedReview.deleteMany', { flaggedBy: 'user-1' }],
+                ['LoginAttempt.deleteMany', { email: 'jasmine@example.com' }],
+                ['user.deleteOne'],
+            ]);
+            expect(userModel.find.calledOnce).to.equal(true);
+            expect(accounts).to.deep.equal([]);
+        });
+
+        it('refuses to delete an account that has been active within 5 years', async () => {
+            const user = { ...storedUser, lastActivity: LAST_MONTH };
+            const { facade, calls } = buildFacade(user);
+
+            await expectRejection(
+                facade.deleteInactiveAccount('user-1'),
+                409,
+                'Only accounts inactive for more than 5 years can be deleted'
+            );
+            expect(calls).to.deep.equal([]);
+        });
+
+        it('refuses to delete an administrator account, however inactive', async () => {
+            const user = { ...storedUser, role: 'admin', lastActivity: SIX_YEARS_AGO };
+            const { facade, calls } = buildFacade(user);
+
+            await expectRejection(facade.deleteInactiveAccount('user-1'), 403, 'Administrator accounts cannot be deleted');
+            expect(calls).to.deep.equal([]);
+        });
+
+        it('reports a missing account as 404', async () => {
+            const { facade } = buildFacade(null);
+
+            await expectRejection(facade.deleteInactiveAccount('user-1'), 404, 'Account not found');
+        });
+    });
 });
 
 describe('Account management controller', () => {
@@ -125,9 +246,54 @@ describe('Account management controller', () => {
         expect(res.statusCode).to.equal(500);
         expect(res.body.message).to.equal('Unable to retrieve user accounts');
     });
+
+    const VALID_ID = '507f1f77bcf86cd799439011';
+
+    it('rejects an invalid account id without asking the facade to delete', async () => {
+        const facade = { deleteInactiveAccount: sinon.stub() };
+        const res = fakeResponse();
+
+        await createAccountManagementController(facade).deleteInactiveAccount({ params: { accountId: 'abc' } }, res);
+
+        expect(res.statusCode).to.equal(400);
+        expect(facade.deleteInactiveAccount.called).to.equal(false);
+    });
+
+    it('confirms the deletion and returns the refreshed list', async () => {
+        const facade = { deleteInactiveAccount: sinon.stub().resolves([]) };
+        const res = fakeResponse();
+
+        await createAccountManagementController(facade).deleteInactiveAccount({ params: { accountId: VALID_ID } }, res);
+
+        expect(facade.deleteInactiveAccount.calledOnceWithExactly(VALID_ID)).to.equal(true);
+        expect(res.statusCode).to.equal(200);
+        expect(res.body).to.deep.equal({ message: 'Account deleted', accounts: [] });
+    });
+
+    it('passes on the reason a deletion was refused', async () => {
+        const refusal = new Error('Only accounts inactive for more than 5 years can be deleted');
+        refusal.statusCode = 409;
+        const facade = { deleteInactiveAccount: sinon.stub().rejects(refusal) };
+        const res = fakeResponse();
+
+        await createAccountManagementController(facade).deleteInactiveAccount({ params: { accountId: VALID_ID } }, res);
+
+        expect(res.statusCode).to.equal(409);
+        expect(res.body.message).to.equal(refusal.message);
+    });
+
+    it('hides unexpected deletion errors behind a generic 500', async () => {
+        const facade = { deleteInactiveAccount: sinon.stub().rejects(new Error('connection lost')) };
+        const res = fakeResponse();
+
+        await createAccountManagementController(facade).deleteInactiveAccount({ params: { accountId: VALID_ID } }, res);
+
+        expect(res.statusCode).to.equal(500);
+        expect(res.body.message).to.equal('Unable to delete account');
+    });
 });
 
-describe('GET /api/admin/accounts', () => {
+describe('/api/admin/accounts routes', () => {
     let app;
     const originalSecret = process.env.JWT_SECRET;
 
@@ -181,5 +347,27 @@ describe('GET /api/admin/accounts', () => {
 
         expect(res.status).to.equal(200);
         expect(res.body[0].username).to.equal('jasmine');
+    });
+
+    it('does not let standard users delete accounts', async () => {
+        const deleteInactiveAccount = sinon.stub(AccountManagementFacade.prototype, 'deleteInactiveAccount');
+
+        const res = await chai.request(app)
+            .delete('/api/admin/accounts/507f1f77bcf86cd799439011')
+            .set('Authorization', `Bearer ${tokenFor('user')}`);
+
+        expect(res.status).to.equal(403);
+        expect(deleteInactiveAccount.called).to.equal(false);
+    });
+
+    it('lets administrators delete accounts', async () => {
+        sinon.stub(AccountManagementFacade.prototype, 'deleteInactiveAccount').resolves([]);
+
+        const res = await chai.request(app)
+            .delete('/api/admin/accounts/507f1f77bcf86cd799439011')
+            .set('Authorization', `Bearer ${tokenFor('admin')}`);
+
+        expect(res.status).to.equal(200);
+        expect(res.body.message).to.equal('Account deleted');
     });
 });

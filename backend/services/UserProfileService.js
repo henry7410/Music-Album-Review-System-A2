@@ -80,6 +80,12 @@ class MongoUserProfileService extends UserProfileService {
             throw error;
         }
 
+        if (user.role === 'admin') {
+            const error = new Error('Administrator accounts cannot be deleted through the profile page');
+            error.statusCode = 403;
+            throw error;
+        }
+
         const passwordMatches = await bcrypt.compare(currentPassword, user.password);
         if (!passwordMatches) {
             const error = new Error('Current password is incorrect');

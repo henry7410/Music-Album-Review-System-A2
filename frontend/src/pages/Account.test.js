@@ -153,6 +153,16 @@ describe('Account', () => {
     expect(screen.getByRole('button', { name: 'Delete account' })).toBeInTheDocument();
   });
 
+  it('does not offer account deletion to administrators', async () => {
+    useAuth.mockReturnValue({ user: { ...user, role: 'admin' }, login, logout });
+    render(<MemoryRouter><Account /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit details' }));
+
+    expect(screen.getByText('Administrator accounts cannot be deleted through the profile page.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete account' })).not.toBeInTheDocument();
+  });
+
   it('logs the user out and confirms deletion after successful password verification', async () => {
     axiosInstance.delete.mockResolvedValue({ data: { message: 'Account deleted successfully' } });
     render(

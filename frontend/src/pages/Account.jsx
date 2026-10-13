@@ -231,23 +231,30 @@ const Account = () => {
                   </div>
                 </form>
 
-                <section className="mt-8 pt-6 border-t border-red-200">
-                  <h2 className="font-semibold text-red-700">Delete account</h2>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Permanently delete your account and personal data. This action cannot be undone.
+                {/* The server also refuses admin self-deletion; this only hides the option. */}
+                {user.role === 'admin' ? (
+                  <p className="mt-8 pt-6 border-t text-sm text-gray-600">
+                    Administrator accounts cannot be deleted through the profile page.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentPassword('');
-                      setDeleteError('');
-                      setDeleteDialogOpen(true);
-                    }}
-                    className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-                  >
-                    Delete account
-                  </button>
-                </section>
+                ) : (
+                  <section className="mt-8 pt-6 border-t border-red-200">
+                    <h2 className="font-semibold text-red-700">Delete account</h2>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Permanently delete your account and personal data. This action cannot be undone.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentPassword('');
+                        setDeleteError('');
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
+                    >
+                      Delete account
+                    </button>
+                  </section>
+                )}
               </>
             ) : (
               <>

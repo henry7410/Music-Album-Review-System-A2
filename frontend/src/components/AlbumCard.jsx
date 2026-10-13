@@ -1,13 +1,10 @@
 import { Link } from 'react-router-dom';
+import AlbumCover from './AlbumCover';
 
 const AlbumCard = ({ album }) => (
   <Link to={`/albums/${album._id}`} className="bg-white shadow-md rounded overflow-hidden block">
     <div className="aspect-square bg-gray-100 flex items-center justify-center">
-      {album.coverImageUrl ? (
-        <img src={album.coverImageUrl} alt={album.title} className="w-full h-full object-cover" />
-      ) : (
-        <span className="text-gray-400 text-sm">No cover</span>
-      )}
+      <AlbumCover album={album} />
     </div>
     <div className="p-3">
       <h3 className="font-semibold truncate">{album.title}</h3>
