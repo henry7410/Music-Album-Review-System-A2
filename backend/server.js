@@ -18,6 +18,7 @@ app.use('/api', require('./routes/albumRoutes'));
 app.use('/api', require('./routes/reviewRoutes'));
 app.use('/api', require('./routes/flaggedReviewRoutes'));
 app.use('/api', require('./routes/moderationRoutes'));
+app.use('/api', require('./routes/accountManagementRoutes'));
 
 // Serves the built frontend in production, behind nginx (see README's
 // deployment checklist) — nginx only reverse-proxies port 80 to this app on
