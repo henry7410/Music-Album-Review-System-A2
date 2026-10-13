@@ -27,6 +27,7 @@ const Header = () => {
       <div className="flex items-center gap-3">
         <span className="text-sm">{user.role === 'admin' ? 'Admin' : user.name}</span>
         {user.role === 'admin' && <Link to="/admin/flagged-reviews" className="text-sm hover:underline">Flagged Reviews</Link>}
+        {user.role === 'admin' && <Link to="/admin/accounts" className="text-sm hover:underline">Accounts</Link>}
         <Link to="/account" className="text-sm hover:underline">
           My Account
         </Link>

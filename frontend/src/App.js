@@ -9,6 +9,7 @@ import RequireAdmin from './components/RequireAdmin';
 import AlbumForm from './pages/AlbumForm';
 import Account from './pages/Account';
 import FlaggedReviews from './pages/FlaggedReviews';
+import AccountManagement from './pages/AccountManagement';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path="/admin/albums/new" element={<AlbumForm />} />
             <Route path="/admin/albums/:id/edit" element={<AlbumForm />} />
             <Route path="/admin/flagged-reviews" element={<FlaggedReviews />} />
+            <Route path="/admin/accounts" element={<AccountManagement />} />
           </Route>
         </Route>
         <Route element={<RedirectIfAuthenticated />}>
