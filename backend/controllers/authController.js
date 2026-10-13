@@ -3,34 +3,57 @@ const User = require('../models/User');
 const LoginAttempt = require('../models/LoginAttempt');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const { defaultPasswordPolicy } = require('../passwordPolicy/passwordRules');
 
 const generateToken = (id, role) => {
     return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '60m' });
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 const registerUser = async (req, res) => {
-    const { name, email, password } = req.body;
+    const { username, firstName, lastName, email, password } = req.body;
     try {
         if (!EMAIL_REGEX.test(email || '')) {
             return res.status(400).json({ message: 'Please provide a valid email address' });
         }
-        if (!PASSWORD_REGEX.test(password || '')) {
-            return res.status(400).json({ message: 'Password must be at least 8 characters and include a letter and a digit' });
+        const trimmedUsername = (username || '').trim();
+        const trimmedFirstName = (firstName || '').trim();
+        const trimmedLastName = (lastName || '').trim();
+        if (!trimmedUsername || !trimmedFirstName || !trimmedLastName) {
+            return res.status(400).json({ message: 'Username, first name and last name are required' });
         }
 
         const normalizedEmail = email.trim().toLowerCase();
 
-        const userExists = await User.findOne({ email: normalizedEmail });
-        if (userExists) return res.status(409).json({ message: 'User already exists' });
+        // Must run before User.create: the pre-save hook replaces the password with a bcrypt hash.
+        const passwordErrors = defaultPasswordPolicy.check(typeof password === 'string' ? password : '', {
+            username: trimmedUsername,
+            email: normalizedEmail,
+        });
+        if (passwordErrors.length > 0) {
+            return res.status(400).json({ message: 'Password does not meet the requirements', errors: passwordErrors });
+        }
 
-        const user = await User.create({ name, email: normalizedEmail, password });
-        res.status(201).json({ id: user.id, name: user.name, email: user.email, role: user.role });
+        const userExists = await User.findOne({ email: normalizedEmail });
+        if (userExists) return res.status(409).json({ message: 'User already exists', field: 'email' });
+
+        const user = await User.create({
+            name: `${trimmedFirstName} ${trimmedLastName}`,
+            firstName: trimmedFirstName,
+            lastName: trimmedLastName,
+            username: trimmedUsername,
+            email: normalizedEmail,
+            password,
+        });
+        res.status(201).json({ id: user.id, name: user.name, username: user.username, email: user.email, role: user.role });
     } catch (error) {
         if (error.code === 11000) {
-            return res.status(409).json({ message: 'User already exists' });
+            // Email and username share error code 11000; keyPattern says which index collided.
+            if (error.keyPattern && error.keyPattern.username) {
+                return res.status(409).json({ message: `Username "${username.trim()}" is already taken`, field: 'username' });
+            }
+            return res.status(409).json({ message: 'User already exists', field: 'email' });
         }
         res.status(500).json({ message: error.message });
     }

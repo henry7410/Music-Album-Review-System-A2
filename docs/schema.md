@@ -238,16 +238,17 @@ user + album.
 
 | Accounts | Password | `createdAt` | `lastActivity` | Purpose |
 |---|---|---|---|---|
-| `brad`, `mika`, `henry`, `kenny`, `jasmine`, `dio`, `giorno`, `jolene`, `josuke` (`<name>@example.com`) | `Demo1234` | first seed run (absent if the account existed before A2) | time of the latest seed run | normal reviewers |
-| `inactive_demo_1` (`inactive1@example.com`) | `Demo1234` | 8 years before the seed run | 6 years before the seed run | inactive-account deletion demo |
-| `inactive_demo_2` (`inactive2@example.com`) | `Demo1234` | 9 years before the seed run | 7 years before the seed run | inactive-account deletion demo |
-| `admin_demo` (`admin@example.com`), role **`admin`** | `Demo1234` | first seed run | time of the latest seed run | admin features (albums, flagged reviews, accounts) |
+| `brad`, `mika`, `henry`, `kenny`, `jasmine`, `dio`, `giorno`, `jolene`, `josuke` (`<name>@example.com`) | `Demo1234!` | fixed dates 2–9 Oct 2026, one per account (see `seedAlbums.js`) | time of the latest seed run | normal reviewers |
+| `inactive_demo_1` (`inactive1@example.com`) | `Demo1234!` | 8 years before the seed run | 6 years before the seed run | inactive-account deletion demo |
+| `inactive_demo_2` (`inactive2@example.com`) | `Demo1234!` | 9 years before the seed run | 7 years before the seed run | inactive-account deletion demo |
+| `admin_demo` (`admin@example.com`), role **`admin`** | `Demo1234!` | 1 Oct 2026 08:30 UTC | time of the latest seed run | admin features (albums, flagged reviews, accounts) |
 
-Every run sets the profile fields and `lastActivity` again, and backdates the
-inactive accounts' `createdAt` again. Running the seed after a demo puts the
+Every run sets the profile fields and `lastActivity` again, and writes every
+account's `createdAt` again (fixed dates for the reviewers and admin,
+backdated years for the inactive accounts). Running the seed after a demo puts the
 inactive accounts back to inactive. (If they were deleted, it recreates them.)
 It also sets `admin_demo`'s role back to `admin` if it was changed.
 
 The seed never changes a password, including on accounts it updates. If
 someone changes a demo account's password, re-running the seed won't put it
-back to `Demo1234`.
+back to `Demo1234!`.
