@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../axiosConfig';
+import AlbumCover from '../components/AlbumCover';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import ReviewCard from '../components/ReviewCard';
@@ -151,11 +152,7 @@ const AlbumDetail = () => {
 
         <div className="flex gap-6">
           <div className="w-40 h-40 flex-shrink-0 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-            {album.coverImageUrl ? (
-              <img src={album.coverImageUrl} alt={album.title} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-gray-400 text-sm">No cover</span>
-            )}
+            <AlbumCover album={album} />
           </div>
           <div>
             <h1 className="text-2xl font-bold">{album.title}</h1>
