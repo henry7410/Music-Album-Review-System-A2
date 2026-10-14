@@ -6,8 +6,8 @@ const axiosInstance = axios.create({
   // nginx, so this works with no hardcoded host. In local dev, CRA's
   // "proxy" field (package.json) forwards relative requests from :3000 to
   // the backend on :5001. Set REACT_APP_API_URL to override either way.
-  // baseURL: process.env.REACT_APP_API_URL || '',
-  baseURL: 'http://15.134.129.43:5001',
+  baseURL: process.env.REACT_APP_API_URL || '',
+  // baseURL: 'http://15.134.129.43:5001',
   headers: { 'Content-Type': 'application/json' },
 });
 
