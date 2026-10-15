@@ -134,6 +134,20 @@ describe('Account', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('does not save an empty or whitespace-only username', async () => {
+    render(<MemoryRouter><Account /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit details' }));
+    const usernameInput = screen.getByLabelText('Username');
+    expect(usernameInput).toBeRequired();
+
+    fireEvent.change(usernameInput, { target: { value: '   ' } });
+    fireEvent.submit(usernameInput.closest('form'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Username is required.');
+    expect(axiosInstance.put).not.toHaveBeenCalled();
+  });
+
   it('warns before deletion and keeps the account when deletion is cancelled', async () => {
     render(<MemoryRouter><Account /></MemoryRouter>);
 
