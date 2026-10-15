@@ -146,4 +146,4 @@ Each has `role: 'user'`. One album (*In Rainbows*) is deliberately left
 without any reviews, to demonstrate the "No ratings yet" state.
 
 **Album cover**
-Non-copyright album covers are from Unsplash.com
+Non-copyright album covers are from Unsplash.com 
