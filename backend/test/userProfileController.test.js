@@ -88,6 +88,43 @@ describe('User profile controller', () => {
         expect(updateCalled).to.equal(false);
     });
 
+    it('rejects a blank username before asking the service to save changes', async () => {
+        let updateCalled = false;
+        const service = {
+            async updateProfile() {
+                updateCalled = true;
+            },
+        };
+        const res = {
+            statusCode: null,
+            body: null,
+            status(code) {
+                this.statusCode = code;
+                return this;
+            },
+            json(body) {
+                this.body = body;
+                return this;
+            },
+        };
+        const controller = createUserProfileController(service);
+
+        await controller.updateProfile({
+            user: { id: 'user-1' },
+            params: {},
+            body: {
+                firstName: 'Jasmine',
+                lastName: 'Jiang',
+                email: 'jasmine@example.com',
+                username: '   ',
+            },
+        }, res);
+
+        expect(res.statusCode).to.equal(400);
+        expect(res.body.message).to.equal('Username is required');
+        expect(updateCalled).to.equal(false);
+    });
+
     it('sends validated changes to the abstract service for the authenticated account', async () => {
         const updates = {
             firstName: 'Jasmine',

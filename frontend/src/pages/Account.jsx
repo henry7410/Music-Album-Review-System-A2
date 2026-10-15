@@ -84,6 +84,11 @@ const Account = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setMessage('');
+    if (!form.username.trim()) {
+      setMessageType('error');
+      setMessage('Username is required.');
+      return;
+    }
     setSaving(true);
     try {
       const response = await axiosInstance.put(`/api/auth/users/${user.id}/profile`, form, {
@@ -209,6 +214,7 @@ const Account = () => {
                       name="username"
                       value={form.username}
                       onChange={handleChange}
+                      required
                       className="mt-1 w-full border border-gray-300 rounded px-3 py-2"
                     />
                   </label>
