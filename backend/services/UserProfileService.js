@@ -64,7 +64,7 @@ class MongoUserProfileService extends UserProfileService {
         user.firstName = updates.firstName;
         user.lastName = updates.lastName;
         user.email = updates.email;
-        user.username = updates.username || undefined;
+        user.username = updates.username;
         user.name = `${updates.firstName} ${updates.lastName}`.trim();
 
         await user.save();

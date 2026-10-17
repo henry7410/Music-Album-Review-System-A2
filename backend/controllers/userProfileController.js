@@ -26,6 +26,7 @@ const validateProfileUpdates = (body) => {
 
     if (!updates.firstName) return { error: 'First name is required' };
     if (!updates.lastName) return { error: 'Last name is required' };
+    if (!updates.username) return { error: 'Username is required' };
     if (!EMAIL_REGEX.test(updates.email)) {
         return { error: 'Please provide a valid email address' };
     }
