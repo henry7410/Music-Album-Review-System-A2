@@ -1,5 +1,14 @@
 const { expect } = require('chai');
-const { buildModerationRows, pendingFlagsByReview } = require('../controllers/moderationController');
+const sinon = require('sinon');
+const FlaggedReview = require('../models/FlaggedReview');
+const Review = require('../models/Review');
+const { DeleteReviewAction } = require('../moderation/moderationActions');
+const {
+    buildModerationRows,
+    pendingFlagsByReview,
+    listFlaggedReviews,
+    deleteFlaggedReview,
+} = require('../controllers/moderationController');
 
 const group = (id, flagCount, reasons, latestFlaggedAt = new Date('2026-10-01')) => ({
     _id: id,
@@ -93,5 +102,64 @@ describe('Moderation: buildModerationRows', () => {
         );
 
         expect(JSON.stringify(row)).not.to.include('brad@example.com');
+    });
+});
+
+const fakeRes = () => ({
+    statusCode: null,
+    body: null,
+    status(code) {
+        this.statusCode = code;
+        return this;
+    },
+    json(body) {
+        this.body = body;
+        return this;
+    },
+});
+
+// Review.find(...).populate(...).populate(...).lean() resolves to these reviews.
+const stubReviewFind = (reviews) => {
+    const query = {
+        populate: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves(reviews),
+    };
+    return sinon.stub(Review, 'find').returns(query);
+};
+
+describe('Moderation: route handlers', () => {
+    afterEach(() => sinon.restore());
+
+    it('listFlaggedReviews responds 200 with the moderation queue', async () => {
+        sinon.stub(FlaggedReview, 'aggregate').resolves([group('r1', 2, ['Spam', 'Spam'])]);
+        stubReviewFind([review('r1')]);
+        const res = fakeRes();
+
+        await listFlaggedReviews({}, res);
+
+        expect(res.statusCode).to.equal(200);
+        expect(res.body.map((row) => row.reviewId)).to.deep.equal(['r1']);
+        expect(res.body[0].flagCount).to.equal(2);
+    });
+
+    it('listFlaggedReviews responds 500 with the error message when loading the queue throws', async () => {
+        sinon.stub(FlaggedReview, 'aggregate').rejects(new Error('aggregate failed'));
+        const res = fakeRes();
+
+        await listFlaggedReviews({}, res);
+
+        expect(res.statusCode).to.equal(500);
+        expect(res.body).to.deep.equal({ message: 'aggregate failed' });
+    });
+
+    it('runModerationAction responds 500 with the error message when the action throws', async () => {
+        // deleteFlaggedReview is runModerationAction(DeleteReviewAction).
+        sinon.stub(DeleteReviewAction.prototype, 'performAction').rejects(new Error('delete failed'));
+        const res = fakeRes();
+
+        await deleteFlaggedReview({ flaggedReview: { review: review('r1'), pendingFlags: [] } }, res);
+
+        expect(res.statusCode).to.equal(500);
+        expect(res.body).to.deep.equal({ message: 'delete failed' });
     });
 });
