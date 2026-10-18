@@ -78,10 +78,10 @@ jobs:
         echo "${{ secrets.PROD }}" > .env
     
     - name: Start or Restart Application with PM2      
-        working-directory: ./backend      
-        run: |
-          pm2 restart mars || pm2 start server.js --name mars        
-          pm2 save
+      working-directory: ./backend      
+      run: |
+        pm2 restart mars || pm2 start server.js --name mars        
+        pm2 save
 
     #- run: pm2 start all
 
