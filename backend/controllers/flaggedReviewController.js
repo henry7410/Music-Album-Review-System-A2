@@ -1,6 +1,7 @@
 const FlaggedReview = require('../models/FlaggedReview');
 const Review = require('../models/Review');
 const FlagFactory = require('../flags/flagFactory');
+const mongoose = require('mongoose');
 
 const createFlaggedReview = async (req, res) => {
     const { reviewId, reason } = req.body;
@@ -11,6 +12,14 @@ const createFlaggedReview = async (req, res) => {
         });
     }
 
+    if (!mongoose.isObjectIdOrHexString(reviewId)) {
+        return res.status(400).json({ message: 'Invalid review id' });
+    }
+
+    if (!['Rude', 'Spam', 'Unrelated to Music Album'].includes(reason)) {
+        return res.status(400).json({ message: 'Invalid flag reason' });
+    }
+
     try {
         const review = await Review.findById(reviewId);
 
@@ -18,6 +27,10 @@ const createFlaggedReview = async (req, res) => {
             return res.status(404).json({
                 message: 'Review not found',
             });
+        }
+
+        if (review.userId.toString() === req.user.id) {
+            return res.status(403).json({ message: 'You cannot flag your own review' });
         }
 
         const flagObject = FlagFactory.create(
