@@ -15,6 +15,7 @@ const ReviewCard = ({ review, onUpdated, onDeleted, onFlagged }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [flagDialogOpen, setFlagDialogOpen] = useState(false);
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [flagReason, setFlagReason] = useState('');
   const [flagSubmitting, setFlagSubmitting] = useState(false);
 
@@ -96,7 +97,7 @@ const ReviewCard = ({ review, onUpdated, onDeleted, onFlagged }) => {
       setFlagDialogOpen(false);
       setFlagReason('');
       onFlagged(review._id);
-      alert('Review reported successfully.');
+      setSuccessDialogOpen(true);
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -162,7 +163,11 @@ const ReviewCard = ({ review, onUpdated, onDeleted, onFlagged }) => {
             <h2 className="text-lg font-semibold mb-4">
               Report Review
             </h2>
-
+            {error && (
+              <p className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
+                {error}
+              </p>
+            )}
             <select
               value={flagReason}
               onChange={(e) => {
@@ -214,9 +219,33 @@ const ReviewCard = ({ review, onUpdated, onDeleted, onFlagged }) => {
         </div>
       )}
 
+      {successDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h2 className="text-lg font-semibold mb-4">
+              Report Submitted
+            </h2>
+
+            <p className="text-gray-600 mb-6">
+              Review reported successfully.
+            </p>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSuccessDialogOpen(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 
-      {error && (
+
+      {error && !flagDialogOpen && (
         <p className="mb-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
           {error}
         </p>
