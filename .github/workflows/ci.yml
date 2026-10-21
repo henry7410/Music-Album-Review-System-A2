@@ -9,11 +9,12 @@ on:
 jobs:
   test:
     name: Run Tests
-    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    #runs-on: [self-hosted, "${{ matrix.runner }}"]
+    runs-on: self-hosted
 
     strategy:
       matrix:
-        runner: [EC2-1, EC2-2]
+        #runner: [EC2-1, EC2-2]
         node-version: [22] # Test on multiple Node.js versions
 
 
