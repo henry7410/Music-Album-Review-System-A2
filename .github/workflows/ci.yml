@@ -75,4 +75,4 @@ jobs:
         pm2 restart backend || pm2 start server.js --name backend       
 
     - name: Save PM2
-      run: pm2 save
+      run: pm2 save 
